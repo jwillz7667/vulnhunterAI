@@ -50,17 +50,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    authorized({ auth: session, request }) {
-      const isLoggedIn = !!session?.user;
-      const isOnLogin = request.nextUrl.pathname === "/login";
-
-      if (isOnLogin) {
-        if (isLoggedIn) return Response.redirect(new URL("/", request.nextUrl));
-        return true;
-      }
-
-      return isLoggedIn;
-    },
     jwt({ token, user }) {
       if (user) {
         token.id = user.id as string;

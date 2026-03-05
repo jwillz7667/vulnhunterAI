@@ -3,6 +3,5 @@
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "rootDirectory": ".",
   "ignoreCommand": "npx turbo-ignore --fallback=HEAD~1"
 }
