@@ -1,0 +1,42 @@
+{
+  "name": "vulnhunter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VulnHunter AI - Autonomous Security Research Platform",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "cd packages/core && npx prisma generate",
+    "db:push": "cd packages/core && npx prisma db push",
+    "db:migrate": "cd packages/core && npx prisma migrate dev",
+    "db:studio": "cd packages/core && npx prisma studio",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "eslint": "^9.19.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.4"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.8.0",
+  "optionalDependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "openai": "^4.104.0"
+  }
+}

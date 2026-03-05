@@ -1,0 +1,8 @@
+{
+  "build": {
+    "buildCommand": "npm install && npx prisma generate && npx turbo build --filter=@vulnhunter/web"
+  },
+  "deploy": {
+    "startCommand": "npx prisma migrate deploy && cd apps/web && npm start"
+  }
+}

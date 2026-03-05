@@ -1,0 +1,329 @@
+// =============================================================================
+// VulnHunter AI - Prisma Schema
+// Security Research & Vulnerability Management Platform
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Auth Models (NextAuth v5)
+// =============================================================================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  targets       Target[]
+  scans         Scan[]
+  reports       Report[]
+  bountyPrograms BountyProgram[]
+  submissions   Submission[]
+  scanTemplates ScanTemplate[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =============================================================================
+// Domain Models
+// =============================================================================
+
+/// Represents a target asset to be scanned (URL, domain, IP, repo, contract).
+model Target {
+  id              String   @id @default(uuid())
+  name            String
+  type            String   // TargetType: URL, DOMAIN, IP, CIDR, REPOSITORY, SMART_CONTRACT
+  value           String   // The actual target URL, domain, IP, CIDR range, repo URL, or contract address
+  scopeIncludes   Json     @default("[]")
+  scopeExcludes   Json     @default("[]")
+  authType        String   @default("NONE") // AuthType: NONE, BASIC, BEARER, COOKIE, OAUTH
+  authCredentials Json?    // Encrypted auth credentials
+  tags            Json     @default("[]")
+  metadata        Json?    // Arbitrary metadata
+  userId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  scans Scan[]
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("targets")
+}
+
+/// An individual scan execution against a target.
+model Scan {
+  id            String    @id @default(uuid())
+  targetId      String
+  type          String    // ScanType: FULL, RECON, WEB, CODE, NETWORK, CLOUD, SMART_CONTRACT
+  status        String    @default("QUEUED") // ScanStatus: QUEUED, RUNNING, PAUSED, COMPLETED, FAILED, CANCELLED
+  config        Json      // Scan configuration
+  progress      Int       @default(0) // 0-100 percentage
+  currentPhase  String?   // Human-readable label of active scan phase
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?      // Total scan duration in seconds
+  findingsCount Int       @default(0)
+  criticalCount Int       @default(0)
+  highCount     Int       @default(0)
+  mediumCount   Int       @default(0)
+  lowCount      Int       @default(0)
+  infoCount     Int       @default(0)
+  userId        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  target          Target          @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  user            User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vulnerabilities Vulnerability[]
+  exploitChains   ExploitChain[]
+  report          Report?
+
+  @@index([status])
+  @@index([targetId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("scans")
+}
+
+/// A discovered vulnerability finding from a scan.
+model Vulnerability {
+  id             String   @id @default(uuid())
+  scanId         String
+  title          String
+  description    String
+  severity       String   // Severity: CRITICAL, HIGH, MEDIUM, LOW, INFO
+  category       String   // VulnCategory: XSS, SQLI, SSRF, etc.
+  cvssScore      Float?   // CVSS v3.1 base score (0.0 - 10.0)
+  cvssVector     String?  // CVSS v3.1 vector string
+  cweId          String?  // CWE identifier (e.g., "CWE-79")
+  endpoint       String?  // The affected URL path or endpoint
+  method         String?  // HTTP method (GET, POST, PUT, etc.)
+  parameter      String?  // The vulnerable parameter name
+  evidence       Json?    // Structured proof-of-concept evidence
+  request        String?  // Raw HTTP request that triggered the vuln
+  response       String?  // Relevant portion of the HTTP response
+  remediation    String?  // Recommended fix / remediation guidance
+  references     Json     @default("[]") // External reference URLs
+  confirmed      Boolean  @default(false)
+  falsePositive  Boolean  @default(false)
+  module         String   // The scanner module that discovered this finding
+  confidence     Int      // Confidence score 0-100
+  rawData        Json?    // Full raw output from the detection module
+  exploitChainId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  scan         Scan          @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  exploitChain ExploitChain? @relation(fields: [exploitChainId], references: [id], onDelete: SetNull)
+  submission   Submission?
+
+  @@index([scanId])
+  @@index([severity])
+  @@index([category])
+  @@index([confirmed])
+  @@index([falsePositive])
+  @@index([exploitChainId])
+  @@map("vulnerabilities")
+}
+
+/// A chain of vulnerabilities that can be exploited together for greater impact.
+model ExploitChain {
+  id               String   @id @default(uuid())
+  scanId           String
+  title            String
+  description      String
+  combinedSeverity String   // Severity: CRITICAL, HIGH, MEDIUM, LOW, INFO
+  exploitPath      Json     // Ordered list of steps
+  createdAt        DateTime @default(now())
+
+  // Relations
+  scan            Scan            @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  vulnerabilities Vulnerability[]
+
+  @@index([scanId])
+  @@index([combinedSeverity])
+  @@map("exploit_chains")
+}
+
+/// A generated report for a completed scan.
+model Report {
+  id                 String   @id @default(uuid())
+  scanId             String   @unique
+  format             String   // ReportFormat: JSON, MARKDOWN, HTML, PDF
+  title              String
+  executiveSummary   String?  // High-level summary for non-technical stakeholders
+  content            String   // Full report body
+  statistics         Json     // Aggregated stats
+  complianceMappings Json?    // Mappings to compliance frameworks
+  userId             String?
+  generatedAt        DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  // Relations
+  scan Scan  @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([format])
+  @@index([generatedAt])
+  @@index([userId])
+  @@map("reports")
+}
+
+/// A bug bounty program on an external platform.
+model BountyProgram {
+  id               String   @id @default(uuid())
+  platform         String   // BountyPlatform: HACKERONE, BUGCROWD
+  name             String
+  url              String   @unique // Program URL on the bounty platform
+  scopeDescription String?
+  bountyMin        Float?   // Minimum bounty payout in USD
+  bountyMax        Float?   // Maximum bounty payout in USD
+  avgPayout        Float?   // Historical average payout in USD
+  avgResponseHours Int?     // Average time to first response in hours
+  active           Boolean  @default(true)
+  metadata         Json?    // Additional platform-specific data
+  userId           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  submissions Submission[]
+
+  @@index([platform])
+  @@index([active])
+  @@index([userId])
+  @@map("bounty_programs")
+}
+
+/// A vulnerability submission to a bug bounty program.
+model Submission {
+  id               String    @id @default(uuid())
+  programId        String
+  vulnerabilityId  String    @unique
+  status           String    @default("DRAFT") // SubmissionStatus
+  reward           Float?    // Bounty reward amount in USD
+  reportUrl        String?   // URL to the report on the bounty platform
+  platformReportId String?   // The platform's internal report identifier
+  submittedAt      DateTime?
+  resolvedAt       DateTime?
+  userId           String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  program       BountyProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  vulnerability Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([programId])
+  @@index([submittedAt])
+  @@index([userId])
+  @@map("submissions")
+}
+
+/// A reusable scan configuration template.
+model ScanTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  config      Json     // Full scan configuration object
+  isDefault   Boolean  @default(false)
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([isDefault])
+  @@index([userId])
+  @@map("scan_templates")
+}
+
+/// A known attack pattern / payload library entry used by scanner modules.
+model AttackPattern {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String
+  category    String    // VulnCategory
+  payloads    Json      @default("[]") // List of payload strings
+  successRate Float     @default(0) // Historical success rate 0.0 - 1.0
+  usageCount  Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+  @@index([successRate])
+  @@index([usageCount])
+  @@map("attack_patterns")
+}
