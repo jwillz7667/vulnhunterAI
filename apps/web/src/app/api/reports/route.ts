@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
 
   let content: string;
   try {
+    // @ts-ignore — resolved at runtime via workspace, not bundled by webpack
     const { generateMarkdown, generateHtml, generateJson } = await import(/* webpackIgnore: true */ "@vulnhunter/reporter");
 
     const reportData = {

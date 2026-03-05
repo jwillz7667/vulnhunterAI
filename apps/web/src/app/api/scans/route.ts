@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
   });
 
   // Fire-and-forget: start the scan in the background
+  // @ts-ignore — resolved at runtime via workspace, not bundled by webpack
   import(/* webpackIgnore: true */ "@vulnhunter/core").then(({ executeScanWithPersistence }) => {
     executeScanWithPersistence({
       target: targetValue,

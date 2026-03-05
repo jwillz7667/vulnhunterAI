@@ -59,7 +59,9 @@ export async function executeScanWithPersistence(
   config: ScanConfig,
   callbacks: ScanCallbacks = {},
 ): Promise<ScanExecutionResult> {
-  // Lazy import to avoid circular deps
+  // Lazy import to avoid circular deps — scanner depends on core so we can't
+  // list it as a dependency; the dynamic import resolves at runtime only.
+  // @ts-ignore — @vulnhunter/scanner may not resolve during isolated tsc build
   const { createFullEngine } = await import("@vulnhunter/scanner");
 
   // 1. Upsert Target
