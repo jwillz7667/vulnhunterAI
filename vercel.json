@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npx prisma generate && npx turbo build --filter=@vulnhunter/web",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "rootDirectory": ".",
+  "ignoreCommand": "npx turbo-ignore --fallback=HEAD~1"
+}
